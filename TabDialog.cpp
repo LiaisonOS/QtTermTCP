@@ -722,8 +722,8 @@ void VARAConnect::openBBSDirectory()
     if (!sel.callsign.isEmpty())
         wCallTo->setEditText(sel.callsign);
 
-    // QSY the rig if frequency is set and HAMLIB/FLRig is configured
-    if (sel.frequency > 0 && (PTTMode & (PTTHAMLIB | PTTFLRIG))) {
+    // QSY the rig if frequency is set
+    if (sel.frequency > 0) {
         extern void SetRigFrequency(quint64 freq);
         SetRigFrequency(sel.frequency);
     }
@@ -781,6 +781,7 @@ void VARAConnect::myaccept()
 				be.frequency = freq;
 				be.band      = band;
 				be.mode      = "VARA HF";
+				be.bandwidth.append(500);
 				be.hours     = "00-00";
 				st.bands.append(be);
 			}

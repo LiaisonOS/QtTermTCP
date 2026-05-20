@@ -514,6 +514,9 @@
     <property name="text">
      <string>500 Hz</string>
     </property>
+    <property name="checked">
+     <bool>true</bool>
+    </property>
     <attribute name="buttonGroup">
      <string notr="true">buttonGroup_3</string>
     </attribute>
@@ -529,9 +532,6 @@
     </property>
     <property name="text">
      <string>2300 Hz</string>
-    </property>
-    <property name="checked">
-     <bool>true</bool>
     </property>
     <attribute name="buttonGroup">
      <string notr="true">buttonGroup_3</string>

@@ -39,10 +39,12 @@ private slots:
     void onAddStation();
     void onEditStation();
     void onDeleteStation();
+    void onConditionsReady(HFConditions cond);
 
 private:
     void applyFilters();
     void populateTable(const QList<BBSStation> &stations);
+    void updateProbColumn();
     bool hourMatch_local(const QString &hours, int utcHour) const;
 
     BBSDirectory *m_dir;
@@ -52,6 +54,7 @@ private:
     double m_userLat;
     double m_userLon;
     bool m_userGridValid;
+    HFConditions m_conditions;
 
     QCheckBox *m_showAll;
     QLabel *m_clockLabel;

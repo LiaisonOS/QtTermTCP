@@ -121,7 +121,6 @@ int BBSCache::getOrCreateNode(const QString &callsign)
 
     if (q.next()) {
         int id = q.value(0).toInt();
-        bbsLog(QString("BBSCache getOrCreateNode: found %1 id=%2").arg(callsign).arg(id));
         return id;
     }
 
@@ -134,7 +133,6 @@ int BBSCache::getOrCreateNode(const QString &callsign)
     }
 
     int id = q.lastInsertId().toInt();
-    bbsLog(QString("BBSCache getOrCreateNode: created %1 id=%2").arg(callsign).arg(id));
     return id;
 }
 
@@ -254,7 +252,6 @@ void BBSCache::onCommandSent(Ui_ListenSession *sess, const QString &cmd)
 
     SessionState &st = m_sessions[sess];
     QString trimmed = cmd.trimmed().toUpper();
-    bbsLog(QString("BBSCache onCommandSent state=%1 cmd=%2").arg(st.state).arg(trimmed));
 
     if (st.state == AtPrompt) {
         if (trimmed.startsWith("LL") || trimmed.startsWith("L ") ||
@@ -290,7 +287,6 @@ void BBSCache::processLine(Ui_ListenSession *sess, const QString &line)
 {
     SessionState &st = m_sessions[sess];
 
-    bbsLog(QString("BBSCache processLine state=%1 line=%2").arg(st.state).arg(line));
 
     // Re-detection: if a new BBS banner with a different callsign arrives in any
     // active state, reset the state machine. This handles connecting to a second

@@ -9,6 +9,14 @@
 #include <QGroupBox>
 #include <QMetaObject>
 
+// Sorts numerically by UserRole int value; displays UserRole+20 string
+class NumericSortItem : public QTableWidgetItem {
+public:
+    bool operator<(const QTableWidgetItem &other) const override {
+        return data(Qt::UserRole).toInt() < other.data(Qt::UserRole).toInt();
+    }
+};
+
 BBSDirectoryDialog::BBSDirectoryDialog(BBSDirectory *dir,
                                        const QString &currentBand,
                                        int currentBandwidth,
@@ -65,15 +73,16 @@ BBSDirectoryDialog::BBSDirectoryDialog(BBSDirectory *dir,
     mainLayout->addWidget(m_bwWarning);
 
     // ---- Table ----
-    m_table = new QTableWidget(0, 8);
-    m_table->setHorizontalHeaderLabels({"Callsign", "Network", "Grid", "Dist (km)", "Band", "Freq (kHz)", "BW", "Hours (UTC)"});
+    m_table = new QTableWidget(0, 9);
+    m_table->setHorizontalHeaderLabels({"Callsign", "Network", "Grid", "Dist (km)", "Prob.", "Band", "Freq (kHz)", "BW", "Hours (UTC)"});
     m_table->horizontalHeader()->setStretchLastSection(false);
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    m_table->horizontalHeader()->setSectionResizeMode(7, QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setMinimumSectionSize(55);
-    m_table->horizontalHeader()->resizeSection(7, 80);
+    m_table->horizontalHeader()->resizeSection(8, 80);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setAlternatingRowColors(true);
@@ -118,6 +127,10 @@ BBSDirectoryDialog::BBSDirectoryDialog(BBSDirectory *dir,
     connect(addBtn,     &QPushButton::clicked,           this, &BBSDirectoryDialog::onAddStation);
     connect(m_editBtn,  &QPushButton::clicked,           this, &BBSDirectoryDialog::onEditStation);
     connect(m_deleteBtn,&QPushButton::clicked,           this, &BBSDirectoryDialog::onDeleteStation);
+
+    // ---- HF conditions ----
+    connect(m_dir, &BBSDirectory::conditionsReady, this, &BBSDirectoryDialog::onConditionsReady);
+    m_dir->fetchHFConditions();
 
     // ---- Clock timer ----
     m_clockTimer = new QTimer(this);
@@ -236,33 +249,46 @@ void BBSDirectoryDialog::populateTable(const QList<BBSStation> &stations)
                 distStr = QString::number(qRound(distVal));
             }
 
+            // Col 0: Callsign
             m_table->setItem(rowCount, 0, new QTableWidgetItem(st.callsign));
             m_table->setItem(rowCount, 1, new QTableWidgetItem(st.network));
             m_table->setItem(rowCount, 2, centered(st.grid.toUpper()));
 
+            // Col 3: Distance
             QTableWidgetItem *distItem = new QTableWidgetItem();
             distItem->setData(Qt::DisplayRole, distVal >= 0 ? QVariant(qRound(distVal)) : QVariant("—"));
             distItem->setTextAlignment(Qt::AlignCenter);
             m_table->setItem(rowCount, 3, distItem);
 
-            m_table->setItem(rowCount, 4, centered(be.band));
+            // Col 4: Probability — placeholder "..." until HamQSL responds
+            NumericSortItem *probItem = new NumericSortItem();
+            probItem->setText("...");
+            probItem->setTextAlignment(Qt::AlignCenter);
+            probItem->setData(Qt::UserRole, -1);          // sort key
+            probItem->setData(Qt::UserRole + 10, distVal);
+            probItem->setData(Qt::UserRole + 11, be.band);
+            m_table->setItem(rowCount, 4, probItem);
 
+            // Col 5: Band
+            m_table->setItem(rowCount, 5, centered(be.band));
+
+            // Col 6: Freq
             QTableWidgetItem *freqItem = new QTableWidgetItem();
             freqItem->setData(Qt::DisplayRole, freqKhz);
             freqItem->setTextAlignment(Qt::AlignCenter);
-            m_table->setItem(rowCount, 5, freqItem);
+            m_table->setItem(rowCount, 6, freqItem);
 
-            m_table->setItem(rowCount, 6, centered(bwStr));
-            m_table->setItem(rowCount, 7, centered(be.hours));
+            m_table->setItem(rowCount, 7, centered(bwStr));
+            m_table->setItem(rowCount, 8, centered(be.hours));
 
             // Store data for retrieval
             m_table->item(rowCount, 0)->setData(Qt::UserRole,     st.callsign);
-            m_table->item(rowCount, 5)->setData(Qt::UserRole + 1, (quint64)be.frequency);
-            m_table->item(rowCount, 4)->setData(Qt::UserRole + 2, be.band);
+            m_table->item(rowCount, 6)->setData(Qt::UserRole + 1, (quint64)be.frequency);
+            m_table->item(rowCount, 5)->setData(Qt::UserRole + 2, be.band);
 
             // Tooltip: sysop, location, grid, notes
             QString tip = QString("%1 — %2\nGrid: %3\n%4").arg(st.sysop, st.location, st.grid, st.notes).trimmed();
-            for (int c = 0; c < 8; ++c)
+            for (int c = 0; c < 9; ++c)
                 if (m_table->item(rowCount, c))
                     m_table->item(rowCount, c)->setToolTip(tip);
 
@@ -271,6 +297,7 @@ void BBSDirectoryDialog::populateTable(const QList<BBSStation> &stations)
     }
 
     m_table->setSortingEnabled(true);
+    m_table->sortByColumn(3, Qt::AscendingOrder);   // Distance until % is ready
     m_infoLabel->setText(QString("%1 station entr%2").arg(rowCount).arg(rowCount == 1 ? "y" : "ies"));
     m_selectBtn->setEnabled(false);
     m_editBtn->setEnabled(false);
@@ -287,7 +314,7 @@ void BBSDirectoryDialog::onRowSelected()
 
 void BBSDirectoryDialog::onRefresh()
 {
-    const QString url = "https://raw.githubusercontent.com/LiaisonOS/QtTermTCP/main/bbs-directory.json";
+    const QString url = "https://raw.githubusercontent.com/LiaisonOS/data/main/bbs-directory.json";
     m_dir->fetchFromUrl(url);
 
     auto *connLoaded = new QMetaObject::Connection();
@@ -310,8 +337,8 @@ void BBSDirectoryDialog::onSelect()
     if (row < 0) return;
 
     QTableWidgetItem *callItem = m_table->item(row, 0);
-    QTableWidgetItem *freqItem = m_table->item(row, 5);
-    QTableWidgetItem *bandItem = m_table->item(row, 4);
+    QTableWidgetItem *freqItem = m_table->item(row, 6);
+    QTableWidgetItem *bandItem = m_table->item(row, 5);
     if (!callItem || !freqItem || !bandItem) return;
 
     m_selection.callsign  = callItem->data(Qt::UserRole).toString();
@@ -324,10 +351,13 @@ void BBSDirectoryDialog::onSelect()
 void BBSDirectoryDialog::onAddStation()
 {
     BBSStation blank;
+    blank.localOnly = true;
     BBSStationEditor editor(blank, this);
     if (editor.exec() != QDialog::Accepted) return;
 
-    m_dir->addOrUpdateStation(editor.result());
+    BBSStation added = editor.result();
+    added.localOnly = true;
+    m_dir->addOrUpdateStation(added);
     applyFilters();
 }
 
@@ -371,4 +401,39 @@ void BBSDirectoryDialog::onDeleteStation()
 
     m_dir->removeStation(callsign);
     applyFilters();
+}
+
+void BBSDirectoryDialog::onConditionsReady(HFConditions cond)
+{
+    m_conditions = cond;
+    updateProbColumn();
+}
+
+void BBSDirectoryDialog::updateProbColumn()
+{
+    int utcHour = QDateTime::currentDateTimeUtc().time().hour();
+    m_table->setSortingEnabled(false);
+    for (int row = 0; row < m_table->rowCount(); ++row)
+    {
+        QTableWidgetItem *probItem = m_table->item(row, 4);
+        if (!probItem) continue;
+        double distKm = probItem->data(Qt::UserRole + 10).toDouble();
+        QString band  = probItem->data(Qt::UserRole + 11).toString();
+        if (distKm < 0) {
+            probItem->setText("—");
+            probItem->setData(Qt::UserRole, -1);
+            continue;
+        }
+        int prob = BBSDirectory::connectionProbability(band, distKm, utcHour, m_conditions);
+        probItem->setData(Qt::DisplayRole, prob);
+        probItem->setData(Qt::UserRole, prob);
+        if (prob >= 70)
+            probItem->setBackground(QColor(0, 180, 0, 80));
+        else if (prob >= 40)
+            probItem->setBackground(QColor(255, 165, 0, 80));
+        else
+            probItem->setBackground(QColor(220, 0, 0, 80));
+    }
+    m_table->setSortingEnabled(true);
+    m_table->sortByColumn(4, Qt::DescendingOrder);
 }

@@ -3,9 +3,19 @@
 
 #include <QObject>
 #include <QList>
+#include <QMap>
 #include <QStringList>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QSqlDatabase>
+
+// HF band conditions from HamQSL — score 0=Poor, 1=Fair, 2=Good, -1=unknown
+struct HFConditions {
+    QMap<QString, int> day;    // key: "80m-40m","30m-20m","17m-15m","12m-10m"
+    QMap<QString, int> night;
+    bool valid = false;
+};
 
 struct BBSBandEntry {
     QString band;           // "40m", "80m", etc.
@@ -25,6 +35,7 @@ struct BBSStation {
     QString antenna;
     QString notes;
     QList<BBSBandEntry> bands;
+    bool localOnly = false;  // true = user-added, never overwritten by online refresh
 };
 
 class BBSDirectory : public QObject
@@ -36,7 +47,6 @@ public:
 
     void loadFromFile(const QString &path);
     void fetchFromUrl(const QString &url);
-    void saveToFile(const QString &path);
 
     const QList<BBSStation> &stations() const { return m_stations; }
 
@@ -53,7 +63,7 @@ public:
                                int bandwidthFilter,
                                int hourFilter) const;
 
-    QString localFilePath() const;
+    QString localFilePath() const;  // returns path to .db file
 
     // Convert frequency (Hz) to amateur band name
     static QString freqToBand(quint64 freq);
@@ -67,19 +77,33 @@ public:
     // Read user grid from ~/.config/emcomm-tools/user.json
     static QString userGrid();
 
+    // Fetch HF band conditions from HamQSL (non-blocking)
+    void fetchHFConditions();
+
+    // Connection probability 0-100 given band, distance km, utc hour, conditions
+    static int connectionProbability(const QString &band, double distKm,
+                                     int utcHour, const HFConditions &cond);
+
 signals:
     void loaded();
     void fetchError(const QString &error);
+    void conditionsReady(HFConditions cond);
 
 private slots:
     void onNetworkReply(QNetworkReply *reply);
 
 private:
+    void initDb();
+    void reloadFromDb();
+    void writeStationToDb(const BBSStation &station);
     void parseJson(const QByteArray &data);
+    void mergeJson(const QByteArray &data);
     bool hourMatch(const QString &hours, int utcHour) const;
+    QString jsonFilePath() const;
 
     QList<BBSStation> m_stations;
     QNetworkAccessManager *m_nam;
+    QSqlDatabase m_db;
 };
 
 // Global instance — shared between QtTermTCP and TabDialog

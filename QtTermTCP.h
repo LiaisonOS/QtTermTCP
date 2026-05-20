@@ -7,6 +7,7 @@
 #include "ui_ColourConfig.h"
 #include "ui_VARAConfig.h"
 #include "ui_KISSConfig.h"
+#include "ui_MERCURYConfig.h"
 #include "QTextEdit"
 #include "QSplitter"
 #include "QLineEdit"
@@ -151,8 +152,10 @@ private slots:
 	void ListenSlot();
 	void AGWSlot();
 	void VARASlot();
+	void MERCURYSlot();
 	void KISSSlot();
-	void deviceaccept();
+	void VARAdeviceaccept();
+	void MERCURYdeviceaccept();
 	void KISSaccept();
 	void KISSreject();
 	void devicereject();
@@ -246,6 +249,7 @@ private:
 	QAction *newCombinedAct;
 	QAction *AGWAction;
 	QAction *VARAAction;
+	QAction *MERCURYAction;
 	QAction *KISSAction;
 	QAction *quitAction;
 	QAction *bbsCacheAction;

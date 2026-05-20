@@ -276,8 +276,8 @@ char VARAPathHF[256] = "";
 char VARAPathFM[256] = "";
 char VARAPathSAT[256] = "";
 
-int VARA500 = 0;
-int VARA2300 = 1;
+int VARA500 = 1;
+int VARA2300 = 0;
 int VARA2750 = 0;
 
 int VARAHF = 1;
@@ -289,6 +289,12 @@ myTcpSocket * VARADataSock;
 
 int VARAConnected = 0;
 int VARAConnecting = 0;
+
+int MERCURYEnable = 0;
+int MERCURY500 = 1;
+int MERCURY2300 = 0;
+int MERCURY2750 = 0;
+char MERCURYTermCall[64] = "";
 
 
 extern char YAPPPath[256];
@@ -357,9 +363,9 @@ void GetSettings();
 QLabel * Status1;
 QLabel * Status2;
 QLabel * Status3;
-QLabel * Status4;
+QLabel * Status5;
 
-QAction *actHost[19];
+QAction *actHost[20];
 QAction *actSetup[16];
 
 QAction * TabSingle = NULL;
@@ -403,6 +409,7 @@ QAction *discAction;
 QFont * menufont;
 QMenu *windowMenu;
 QMenu *setupMenu;
+QMenu *bbsMenu;
 QAction *ListenAction;
 
 QTabWidget *tabWidget;
@@ -1198,6 +1205,17 @@ QtTermTCP::QtTermTCP(QWidget *parent) : QMainWindow(parent)
 	connectMenu->addAction(actHost[18]);
 
 	connect(actHost[18], SIGNAL(triggered()), this, SLOT(Connect()));
+
+	/* VA2OPS : TODO, Add the new Mercury option  - To  be tested on air */
+	
+	actHost[19] = new QAction("Mercury Connect", this);
+	actHost[19]->setFont(*menufont);
+	actHost[19]->setVisible(0);
+	connectMenu->addAction(actHost[19]);
+
+    connect(actHost[19], SIGNAL(triggered()), this, SLOT(Connect()));
+	
+
 	for (i = 0; i < MAXHOSTS; i++)
 	{
 		actHost[i] = new QAction(Host[i], this);
@@ -1307,22 +1325,31 @@ QtTermTCP::QtTermTCP(QWidget *parent) : QMainWindow(parent)
 	connect(VARAAction, SIGNAL(triggered()), this, SLOT(VARASlot()));
 	VARAAction->setFont(*menufont);
 
+	/* VA2OPS : Todo implemented the new dialog to setup Mercury modem */
+	MERCURYAction = new QAction("Mercury Setup", this);
+	setupMenu->addAction(MERCURYAction);
+	connect(MERCURYAction, SIGNAL(triggered()), this, SLOT(MERCURYSlot()));
+	MERCURYAction->setFont(*menufont);
+
+
 	KISSAction = new QAction("KISS Setup", this);
 	setupMenu->addAction(KISSAction);
 	connect(KISSAction, SIGNAL(triggered()), this, SLOT(KISSSlot()));
 	KISSAction->setFont(*menufont);
 
-	setupMenu->addSeparator();
+	bbsMenu = mymenuBar->addMenu(tr("&BBS"));
+
+	bbsDirectoryAction = new QAction("BBS Directory", this);
+	bbsMenu->addAction(bbsDirectoryAction);
+	connect(bbsDirectoryAction, SIGNAL(triggered()), this, SLOT(showBBSDirectory()));
+	bbsDirectoryAction->setFont(*menufont);
 
 	bbsCacheAction = new QAction("BBS Cache", this);
-	setupMenu->addAction(bbsCacheAction);
+	bbsMenu->addAction(bbsCacheAction);
 	connect(bbsCacheAction, SIGNAL(triggered()), this, SLOT(showBBSCache()));
 	bbsCacheAction->setFont(*menufont);
 
-	bbsDirectoryAction = new QAction("BBS Directory", this);
-	setupMenu->addAction(bbsDirectoryAction);
-	connect(bbsDirectoryAction, SIGNAL(triggered()), this, SLOT(showBBSDirectory()));
-	bbsDirectoryAction->setFont(*menufont);
+	setupMenu->addSeparator();
 
 	actChatMode = setupMenuLine(setupMenu, (char *)"Chat Terminal Mode", this, ChatMode);
 	actAutoTeletext = setupMenuLine(setupMenu, (char *)"Auto switch to Teletext", this, AutoTeletext);
@@ -1415,24 +1442,24 @@ QtTermTCP::QtTermTCP(QWidget *parent) : QMainWindow(parent)
 	//	setStyleSheet("QStatusBar{border-top: 1px outset black;}");
 
 
-	Status4 = new QLabel("");
-	Status3 = new QLabel("         ");
-	Status2 = new QLabel("    ");
-	Status1 = new QLabel("  Disconnected  ");
+	Status5 = new QLabel("Mercury");
+	Status3 = new QLabel("KISS");
+	Status2 = new QLabel("VARA");
+	Status1 = new QLabel("AGW");
 
-	Status1->setMinimumWidth(100);
-	Status2->setMinimumWidth(100);
-	Status3->setMinimumWidth(100);
-	Status4->setMinimumWidth(100);
+	Status1->setMinimumWidth(120);
+	Status2->setMinimumWidth(160);
+	Status3->setMinimumWidth(120);
+	Status5->setMinimumWidth(160);
 
 	myStatusBar = statusBar();
 
-	statusBar()->addPermanentWidget(Status4);
+	statusBar()->addPermanentWidget(Status5);
 	statusBar()->addPermanentWidget(Status3);
 	statusBar()->addPermanentWidget(Status2);
 	statusBar()->addPermanentWidget(Status1);
 
-	statusBar()->setVisible(AGWEnable | VARAEnable | KISSEnable);
+	statusBar()->setVisible(AGWEnable | VARAEnable | KISSEnable | MERCURYEnable);
 	// Restore saved sessions
 
 	if (TermMode == Single)
@@ -1495,7 +1522,7 @@ QtTermTCP::QtTermTCP(QWidget *parent) : QMainWindow(parent)
 
 	setFonts();
 
-	if (VARAEnable)
+	if (VARAEnable || MERCURYEnable)
 		OpenPTTPort();
 
 	memset(axMYCALL, 0, 7);
@@ -1585,7 +1612,19 @@ void QtTermTCP::showBBSDirectory()
     QString band = BBSDirectory::freqToBand(rigFreq);
 
     BBSDirectoryDialog dlg(g_bbsDirectory, band, bw, this);
-    dlg.exec();
+    if (dlg.exec() == QDialog::Accepted) {
+        BBSDirectorySelection sel = dlg.selection();
+        // QSY the rig
+        if (sel.frequency > 0) {
+            extern void SetRigFrequency(quint64 freq);
+            SetRigFrequency(sel.frequency);
+        }
+        // Open VARA connect dialog pre-filled with selected callsign
+        VARAConnect connectDlg(this);
+        if (!sel.callsign.isEmpty())
+            connectDlg.wCallTo->setCurrentText(sel.callsign.toUpper());
+        connectDlg.exec();
+    }
 }
 
 void QtTermTCP::onBBSDetected(Ui_ListenSession *sess, const QString &node)
@@ -1599,7 +1638,7 @@ void QtTermTCP::onBBSDetected(Ui_ListenSession *sess, const QString &node)
 		: 0;
 
 	QString notice = count > 0
-		? QString("\n[BBSCache: %1 - %2 bulletins cached. Use Setup > BBS Cache to browse.]\n\n").arg(node).arg(count)
+		? QString("\n[BBSCache: %1 - %2 bulletins cached. Use BBS > BBS Cache to browse.]\n\n").arg(node).arg(count)
 		: QString("\n[BBSCache: %1 - new node, no cache yet.]\n\n").arg(node);
 
 	QByteArray data = notice.toUtf8();
@@ -1982,7 +2021,9 @@ void QtTermTCP::Connect()
 	}
 
 
-	if (Act == actHost[17])
+	// VA2OPS : TODO, Add Mercury ID = 19. to act has a Vara Modem // To be tested on air.
+
+	if (Act == actHost[17] || Act == actHost[19])
 	{
 		// This runs the VARA Connection dialog
 
@@ -1991,6 +2032,8 @@ void QtTermTCP::Connect()
 		VARASock->Sess = Sess;
 
 		VARAConnect dialog(0);
+		if (MERCURYEnable)
+			dialog.setWindowTitle("Mercury Connection");
 		dialog.exec();
 		WritetoOutputWindow(Sess, (unsigned char *)"Connecting...\r", 14);
 
@@ -3204,12 +3247,18 @@ void GetSettings()
 	strcpy(VARAPathFM, settings->value("VARAPathFM", "C:\\VARA\\VARAFM.exe").toString().toUtf8());
 	strcpy(VARAPathSAT, settings->value("VARAPathSAT", "C:\\VARA\\VARASAT.exe").toString().toUtf8());
 	strcpy(VARATermCall, settings->value("VARATermCall", "").toString().toUtf8());
-	VARA500 = settings->value("VARA500", 0).toInt();
-	VARA2300 = settings->value("VARA2300", 1).toInt();
+	VARA500 = settings->value("VARA500", 1).toInt();
+	VARA2300 = settings->value("VARA2300", 0).toInt();
 	VARA2750 = settings->value("VARA2750", 0).toInt();
 	VARAHF = settings->value("VARAHF", 1).toInt();
 	VARAFM = settings->value("VARAFM", 0).toInt();
 	VARASAT = settings->value("VARASAT", 0).toInt();
+	
+	strcpy(MERCURYTermCall, settings->value("MERCURYTermCall", "").toString().toUtf8());
+	MERCURYEnable = settings->value("MERCURYEnable", 0).toInt();
+	MERCURY500 = settings->value("MERCURY500", 1).toInt();
+	MERCURY2300 = settings->value("MERCURY2300", 0).toInt();
+	MERCURY2750 = settings->value("MERCURY2750", 0).toInt();
 
 	strcpy(PTTPort, settings->value("PTT", "None").toString().toUtf8());
 	PTTMode = settings->value("PTTMode", 19200).toInt();
@@ -3409,6 +3458,12 @@ extern "C" void SaveSettings()
 	settings->setValue("VARAFM", VARAFM);
 	settings->setValue("VARASAT", VARASAT);
 
+	settings->setValue("MERCURYEnable", MERCURYEnable);
+	settings->setValue("MERCURYTermCall", MERCURYTermCall);
+	settings->setValue("MERCURY500", MERCURY500);
+	settings->setValue("MERCURY2300", MERCURY2300);
+	settings->setValue("MERCURY2750", MERCURY2750);
+
 
 	sprintf(Param, "%d %d %d %d %d %d %d %d %d %d",
 		TabType[0], TabType[1], TabType[2], TabType[3], TabType[4], TabType[5], TabType[6], TabType[7], TabType[8], TabType[9]);
@@ -3548,7 +3603,7 @@ void QtTermTCP::MyTimerSlot()
 	if (AGWEnable)
 		AGWTimer();
 
-	if (VARAEnable)
+	if (VARAEnable || MERCURYEnable)
 		VARATimer();
 
 	if (KISSEnable)
@@ -3578,6 +3633,7 @@ void QtTermTCP::AGWSlot()
 }
 
 Ui_Dialog * Dev;
+Ui_MercuryDialog * MercuryDev;
 
 static Ui_KISSDialog * KISS;
 static Ui_ColourDialog * COLOURS;
@@ -3689,7 +3745,7 @@ void QtTermTCP::KISSaccept()
 	Q = KISS->Retries->text();
 	fracks[0] = Q.toInt();
 
-	myStatusBar->setVisible(AGWEnable | VARAEnable | KISSEnable);
+	myStatusBar->setVisible(AGWEnable | VARAEnable | KISSEnable | MERCURYEnable);
 
 
 	if (KISSEnable != OldEnable || KISSPortNum != OldPort ||
@@ -3733,8 +3789,36 @@ void QtTermTCP::KISSreject()
 }
 
 
+void QtTermTCP::MERCURYSlot()
+{
+	// This runs the Mercury Configuration dialog
+	// Mercury acts as VARA HF internally — Host/Port/PTT are managed by et-supervisor
 
+	MercuryDev = new(Ui_MercuryDialog);
 
+	QDialog UI;
+
+	MercuryDev->setupUi(&UI);
+
+	UI.setFont(*menufont);
+
+	deviceUI = &UI;
+
+	MercuryDev->MERCURYEnable->setChecked(MERCURYEnable);
+	MercuryDev->TermCall->setText(MERCURYTermCall);
+
+	if (MERCURY500)
+		MercuryDev->MERCURY500->setChecked(true);
+	else if (MERCURY2750)
+		MercuryDev->MERCURY2750->setChecked(true);
+	else
+		MercuryDev->MERCURY2300->setChecked(true);
+
+	QObject::connect(MercuryDev->okButton, SIGNAL(clicked()), this, SLOT(MERCURYdeviceaccept()));
+	QObject::connect(MercuryDev->cancelButton, SIGNAL(clicked()), this, SLOT(devicereject()));
+
+	UI.exec();
+}
 
 void QtTermTCP::VARASlot()
 {
@@ -3833,7 +3917,7 @@ void QtTermTCP::VARASlot()
 
 	PTTPortChanged(0);				// Force reevaluation
 
-	QObject::connect(Dev->okButton, SIGNAL(clicked()), this, SLOT(deviceaccept()));
+	QObject::connect(Dev->okButton, SIGNAL(clicked()), this, SLOT(VARAdeviceaccept()));
 	QObject::connect(Dev->cancelButton, SIGNAL(clicked()), this, SLOT(devicereject()));
 
 	UI.exec();
@@ -3844,7 +3928,38 @@ extern QProcess *process;
 
 void ClosePTTPort();
 
-void QtTermTCP::deviceaccept()
+void QtTermTCP::MERCURYdeviceaccept()
+{
+	int OldEnable = MERCURYEnable;
+
+	MERCURYEnable = MercuryDev->MERCURYEnable->isChecked();
+
+	strcpy(MERCURYTermCall, MercuryDev->TermCall->text().toUtf8().toUpper());
+
+	MERCURY500  = MercuryDev->MERCURY500->isChecked();
+	MERCURY2300 = MercuryDev->MERCURY2300->isChecked();
+	MERCURY2750 = MercuryDev->MERCURY2750->isChecked();
+
+	if (MERCURYEnable != OldEnable)
+	{
+		// Disconnect VARA socket if Mercury was just disabled
+		if (OldEnable && VARASock && VARASock->ConnectedState == QAbstractSocket::ConnectedState)
+		{
+			VARASock->disconnectFromHost();
+			if (VARADataSock)
+				VARADataSock->disconnectFromHost();
+			Status5->setText("Mercury Disconnected");
+		}
+	}
+
+	myStatusBar->setVisible(AGWEnable | VARAEnable | KISSEnable | MERCURYEnable);
+
+	delete(MercuryDev);
+	SaveSettings();
+	deviceUI->accept();
+}
+
+void QtTermTCP::VARAdeviceaccept()
 {
 	QVariant Q;
 
@@ -4711,7 +4826,10 @@ void QtTermTCP::ConnecttoVARA()
 
 	VARASock->connectToHost(VARAHost, VARAPortNum);
 
-	Status2->setText("VARA Control Connecting");
+	if(VARAEnable)
+		Status2->setText("VARA Control Connecting");
+	else
+		Status5->setText("MERCURY Control Connecting");
 
 	return;
 }
@@ -4990,8 +5108,17 @@ void QtTermTCP::onVARASocketStateChanged(QAbstractSocket::SocketState socketStat
 	{
 		// Close any connections
 
-		Status2->setText("VARA Disconnected");
-		actHost[17]->setVisible(0);
+		if(VARAEnable) 
+		{
+			Status2->setText("VARA Disconnected");
+			actHost[17]->setVisible(0);
+		}
+		else
+		if(MERCURYEnable)
+		{
+			Status5->setText("MERCURY Disconnected");
+			actHost[19]->setVisible(0);
+		}
 
 		VARAConnecting = VARAConnected = 0;
 	}
@@ -5006,7 +5133,10 @@ void QtTermTCP::onVARASocketStateChanged(QAbstractSocket::SocketState socketStat
 		connect(VARADataSock, SIGNAL(stateChanged(QAbstractSocket::SocketState)), this, SLOT(onVARADataSocketStateChanged(QAbstractSocket::SocketState)));
 
 		VARADataSock->connectToHost(VARAHost, VARAPortNum + 1);
-		Status2->setText("VARA Data Connecting");
+		if(VARAEnable) 
+			Status2->setText("VARA Data Connecting");
+		else
+			Status5->setText("MERCURY Data Connecting");
 	}
 }
 
@@ -5019,22 +5149,33 @@ void QtTermTCP::VARADatadisplayError(QAbstractSocket::SocketError socketError)
 		break;
 
 	case QAbstractSocket::HostNotFoundError:
-		QMessageBox::information(this, tr("QtTermTCP"),
-			tr("VARA host was not found. Please check the "
-				"host name and portsettings->"));
 
-		Status2->setText("VARA Connection Failed");
+		QMessageBox::information(this, tr("QtTermTCP"), (VARAEnable) ? tr("VARA host was not found. Please check the host name and portsettings->") :  tr("MERCURY host was not found. Please check the host name and portsettings->"));
+
+		if(VARAEnable)				
+			Status2->setText("VARA Connection Failed");
+		else
+			Status5->setText("MERCURY Connection Failed");
 
 		break;
 
 	case QAbstractSocket::ConnectionRefusedError:
 
-		Status2->setText("VARA Connection Refused");
+		if(VARAEnable)
+			Status2->setText("VARA Connection Refused");
+		else
+		if(MERCURYEnable)
+			Status5->setText("MERCURY Connection Refused");
+
 		break;
 
 	default:
 
-		Status2->setText("VARA Connection Failed");
+		if(VARAEnable)
+			Status2->setText("VARA Connection Failed");
+		else
+		if(MERCURYEnable)
+			Status5->setText("MERCURY Connection Failed");
 	}
 
 	VARAConnecting = 0;
@@ -5080,8 +5221,16 @@ void QtTermTCP::onVARADataSocketStateChanged(QAbstractSocket::SocketState socket
 	{
 		// Close any connections
 
-		Status2->setText("VARA Disconnected");
+		if(VARAEnable)
+			Status2->setText("VARA Disconnected");
+		else
+		if(MERCURYEnable)
+			Status5->setText("MERCURY Disconnected");
+		else
+			Status2->setText("MODEM Disconnected");
+
 		actHost[17]->setVisible(0);
+		actHost[19]->setVisible(0);
 
 		VARAConnecting = VARAConnected = 0;
 	}
@@ -5092,18 +5241,32 @@ void QtTermTCP::onVARADataSocketStateChanged(QAbstractSocket::SocketState socket
 		VARAConnected = 1;
 		VARAConnecting = 0;
 
-		Status2->setText("VARA Connected");
+		if(VARAEnable)
+			Status2->setText("VARA Connected");
+		else
+		if(MERCURYEnable)
+			Status5->setText("MERCURY Connected");
+		else
+			Status2->setText("MODEM Connected");
 
-		actHost[17]->setVisible(1);			// Enable VARA Connect Line
+		if (MERCURYEnable)
+			actHost[19]->setVisible(1);		// Enable Mercury Connect menu item
+		else
+			actHost[17]->setVisible(1);		// Enable VARA Connect menu item
 
-		sprintf(MyCall, "MYCALL %s\r", VARATermCall);
+		if(VARAEnable)
+			sprintf(MyCall, "MYCALL %s\r", VARATermCall);
+		else
+		if(MERCURYEnable)
+			sprintf(MyCall, "MYCALL %s\r", MERCURYTermCall);
+
 		VARASock->write(MyCall);
 
-		if (VARA500)
+		if (VARA500 || MERCURY500)
 			VARASock->write("BW500\r");
-		else if (VARA2300)
+		else if (VARA2300 || MERCURY2300)
 			VARASock->write("BW2300\r");
-		else if (VARA2750)
+		else if (VARA2750 || MERCURY2750)
 			VARASock->write("BW2750\r");
 
 		VARASock->write("COMPRESSION FILES\r");
