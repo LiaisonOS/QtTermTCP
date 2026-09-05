@@ -35,7 +35,11 @@ SOURCES += main.cpp\
         BBSCacheDialog.cpp \
         BBSDirectory.cpp \
         BBSDirectoryDialog.cpp \
-        BBSStationEditor.cpp
+        BBSStationEditor.cpp \
+        Bulletin.cpp \
+        BulletinComposer.cpp \
+        BulletinOutboxDialog.cpp \
+        BulletinSender.cpp
 
 HEADERS  += QtTermTCP.h\
         TabDialog.h \
@@ -43,7 +47,11 @@ HEADERS  += QtTermTCP.h\
         BBSCacheDialog.h \
         BBSDirectory.h \
         BBSDirectoryDialog.h \
-        BBSStationEditor.h
+        BBSStationEditor.h \
+        Bulletin.h \
+        BulletinComposer.h \
+        BulletinOutboxDialog.h \
+        BulletinSender.h
 
 FORMS    += QtTermTCP.ui\
         ListenPort.ui \

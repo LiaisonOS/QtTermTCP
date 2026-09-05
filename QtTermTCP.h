@@ -222,6 +222,7 @@ private slots:
 	void SetVARAParams();
 	void showBBSCache();
 	void showBBSDirectory();
+	void showBulletinOutbox();
 	void onBBSDetected(Ui_ListenSession *sess, const QString &node);
 
 protected:
@@ -254,8 +255,10 @@ private:
 	QAction *quitAction;
 	QAction *bbsCacheAction;
 	QAction *bbsDirectoryAction;
+	QAction *bulletinOutboxAction;
 	BBSCacheDialog *m_bbsCacheDialog = nullptr;
 	BBSDirectory *m_bbsDirectory = nullptr;
+	class BulletinOutboxDialog *m_bulletinOutboxDialog = nullptr;
 
 	QList<myTcpSocket*>  _sockets;
 

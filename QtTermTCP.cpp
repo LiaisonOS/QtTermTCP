@@ -78,6 +78,7 @@
 #include "BBSCacheDialog.h"
 #include "BBSDirectory.h"
 #include "BBSDirectoryDialog.h"
+#include "BulletinOutboxDialog.h"
 #include <QFile>
 #include <QRegularExpression>
 #include <QMessageBox>
@@ -1349,6 +1350,11 @@ QtTermTCP::QtTermTCP(QWidget *parent) : QMainWindow(parent)
 	connect(bbsCacheAction, SIGNAL(triggered()), this, SLOT(showBBSCache()));
 	bbsCacheAction->setFont(*menufont);
 
+	bulletinOutboxAction = new QAction("Bulletins…", this);
+	bbsMenu->addAction(bulletinOutboxAction);
+	connect(bulletinOutboxAction, SIGNAL(triggered()), this, SLOT(showBulletinOutbox()));
+	bulletinOutboxAction->setFont(*menufont);
+
 	setupMenu->addSeparator();
 
 	actChatMode = setupMenuLine(setupMenu, (char *)"Chat Terminal Mode", this, ChatMode);
@@ -1582,6 +1588,19 @@ void QtTermTCP::showBBSCache()
 	m_bbsCacheDialog->show();
 	m_bbsCacheDialog->raise();
 	m_bbsCacheDialog->activateWindow();
+}
+
+void QtTermTCP::showBulletinOutbox()
+{
+	if (!m_bulletinOutboxDialog) {
+		m_bulletinOutboxDialog = new BulletinOutboxDialog(this);
+		connect(m_bulletinOutboxDialog, &QDialog::finished, this, [this]() {
+			m_bulletinOutboxDialog = nullptr;
+		});
+	}
+	m_bulletinOutboxDialog->show();
+	m_bulletinOutboxDialog->raise();
+	m_bulletinOutboxDialog->activateWindow();
 }
 
 void QtTermTCP::showBBSDirectory()
