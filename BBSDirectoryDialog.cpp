@@ -128,9 +128,8 @@ BBSDirectoryDialog::BBSDirectoryDialog(BBSDirectory *dir,
     connect(m_editBtn,  &QPushButton::clicked,           this, &BBSDirectoryDialog::onEditStation);
     connect(m_deleteBtn,&QPushButton::clicked,           this, &BBSDirectoryDialog::onDeleteStation);
 
-    // ---- HF conditions ----
+    // ---- HF conditions ---- (fetched only via "Refresh Online", never on open — offline-first)
     connect(m_dir, &BBSDirectory::conditionsReady, this, &BBSDirectoryDialog::onConditionsReady);
-    m_dir->fetchHFConditions();
 
     // ---- Clock timer ----
     m_clockTimer = new QTimer(this);
@@ -316,6 +315,7 @@ void BBSDirectoryDialog::onRefresh()
 {
     const QString url = "https://raw.githubusercontent.com/LiaisonOS/data/main/bbs-directory.json";
     m_dir->fetchFromUrl(url);
+    m_dir->fetchHFConditions();   // update band conditions together with the directory (opt-in)
 
     auto *connLoaded = new QMetaObject::Connection();
     auto *connError  = new QMetaObject::Connection();
